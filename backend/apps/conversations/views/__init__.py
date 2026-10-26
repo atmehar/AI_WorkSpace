@@ -4,10 +4,12 @@ from .conversation_views import (
     ConversationMessagesView
 )
 from .ask_view import AskQuestionView
+from .request_view import RequestDetailView
 
 __all__ = [
     'ConversationListCreateView',
     'ConversationDetailView',
     'ConversationMessagesView',
-    'AskQuestionView'
+    'AskQuestionView',
+    'RequestDetailView'
 ]

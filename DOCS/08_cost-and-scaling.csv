@@ -1,0 +1,15 @@
+User Tier,Total Users,Daily Active Users (30%),Daily Questions (6/user),Monthly Questions,Total Chunks in DB,Vector DB Storage (pgvector),Monthly LLM & Embedding Cost (USD),Monthly Infrastructure Cost (USD),Total Monthly Operating Cost (USD),Cost Per Active User / Month (USD)
+Tier 1: Early MVP,100,30,180,5400,5400 chunks,35 MB,$1.80,$12.50 (VPS Hostinger),$14.30,$0.47
+Tier 2: Growing SaaS,1000,300,1800,54000,54000 chunks,350 MB,$18.00,$12.50 (VPS Hostinger),$30.50,$0.10
+Tier 3: Enterprise Scale,10000,3000,18000,540000,540000 chunks,3.5 GB,$180.00,$210.00 (AWS Cloud),$390.00,$0.13
+Tier 4: Hyper Scale,1000000,300000,1800000,54000000,54000000 chunks,350 GB,$18000.00,$3850.00 (Multi-AZ Aurora),$21850.00,$0.07
+,,,,,,,,,,
+Resource,Vendor / Provider,Specification,Pricing Rate,Region,Billing Currency,Source URL,Date Accessed
+Embedding Model,OpenAI,text-embedding-3-small (1536 dim),$0.020 / 1M input tokens,Global,USD,https://openai.com/api/pricing/,October 2026
+Chat Model (Input),OpenAI,gpt-4o-mini,$0.150 / 1M input tokens,Global,USD,https://openai.com/api/pricing/,October 2026
+Chat Model (Output),OpenAI,gpt-4o-mini,$0.600 / 1M output tokens,Global,USD,https://openai.com/api/pricing/,October 2026
+VPS Compute & Storage,Hostinger,KVM 4 (4 vCPU 16GB RAM 200GB NVMe),$9.99 / month,US / EU,USD,https://www.hostinger.com/vps-hosting,October 2026
+Managed PostgreSQL,AWS,Aurora Serverless v2 PostgreSQL (0.5 to 4 ACUs),~$86.40 / month,us-east-1,USD,https://aws.amazon.com/rds/aurora/pricing/,October 2026
+ECS Fargate Compute,AWS,2 tasks (2 vCPU 4GB RAM),~$73.00 / month,us-east-1,USD,https://calculator.aws/,October 2026
+Object Storage,AWS,S3 Standard (100GB + 10k PUT/GET),~$2.50 / month,us-east-1,USD,https://aws.amazon.com/s3/pricing/,October 2026
+Frontend Hosting,Vercel,Pro Plan,$20.00 / month,Global CDN,USD,https://vercel.com/pricing,October 2026

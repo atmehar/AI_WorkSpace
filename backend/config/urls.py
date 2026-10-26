@@ -8,6 +8,8 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+from apps.conversations.views import RequestDetailView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -16,6 +18,7 @@ urlpatterns = [
     path('api/v1/workspaces/', include('apps.workspaces.urls')),
     path('api/v1/documents/', include('apps.documents.urls')),
     path('api/v1/conversations/', include('apps.conversations.urls')),
+    path('api/v1/requests/<uuid:id>/', RequestDetailView.as_view(), name='request_detail'),
     path('api/v1/usage/', include('apps.usage.urls')),
 ]
 

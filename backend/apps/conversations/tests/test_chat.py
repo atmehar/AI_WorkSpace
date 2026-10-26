@@ -31,3 +31,19 @@ class ConversationTests(TestCase):
         self.assertTrue(res.data['is_abstention'])
         self.assertEqual(len(res.data['sources']), 0)
         self.assertIn('usage', res.data)
+
+    def test_get_request_detail(self):
+        from apps.conversations.models import Message
+        msg = Message.objects.create(
+            conversation=self.conversation,
+            role=Message.Role.ASSISTANT,
+            content="Answer content",
+            sources=[{"chunk_id": "test", "excerpt": "snippet"}],
+            status=Message.Status.COMPLETED
+        )
+        url = f'/api/v1/requests/{msg.id}/'
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['request_id'], str(msg.id))
+        self.assertEqual(res.data['status'], 'completed')
+        self.assertEqual(res.data['content'], "Answer content")
