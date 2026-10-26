@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env', override=True)
 
 # Add apps directory to Python path
 sys.path.insert(0, str(BASE_DIR / 'apps'))
@@ -149,5 +149,5 @@ DAILY_QUESTION_LIMIT = int(os.getenv('DAILY_QUESTION_LIMIT', 20))
 
 # AI Provider Settings
 AI_API_KEY = os.getenv('AI_API_KEY', '')
-AI_MODEL = os.getenv('AI_MODEL', 'gpt-4o-mini')
-EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'text-embedding-3-small')
+AI_MODEL = os.getenv('AI_MODEL', 'gemini-3.8-flash')
+EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'gemini-embedding-2')

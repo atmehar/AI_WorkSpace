@@ -179,9 +179,9 @@ export const ChatPage = () => {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '280px 1fr',
+      gridTemplateColumns: '300px 1fr',
       gap: '1.5rem',
-      height: 'calc(100vh - 120px)',
+      height: 'calc(100vh - 116px)',
       position: 'relative',
     }}>
       {/* Left Column: Conversations & Document Filter */}
