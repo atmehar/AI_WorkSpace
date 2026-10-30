@@ -1,42 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { documentApi } from '../services/document_api';
+import React, { useState } from 'react';
+import { useGetDocumentsQuery } from '../api/documentsApi';
 import { UploadDropzone } from '../components/UploadDropzone';
 import { DocumentCard } from '../components/DocumentCard';
 import { FileText, Search, RefreshCw, AlertCircle } from 'lucide-react';
 
 export const DocumentsPage = () => {
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: documents = [], isLoading: loading, error: fetchError, refetch } = useGetDocumentsQuery();
   const [search, setSearch] = useState('');
-  const [error, setError] = useState(null);
 
-  const fetchDocs = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await documentApi.getDocuments();
-      setDocuments(data);
-    } catch (err) {
-      setError('Failed to load documents.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDocs();
-  }, []);
-
-  const handleUploadSuccess = (newDoc) => {
-    setDocuments((prev) => [newDoc, ...prev]);
-  };
-
-  const handleDeleteSuccess = (deletedId) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== deletedId));
-  };
+  const error = fetchError ? (fetchError?.data?.error?.message || 'Failed to load documents.') : null;
 
   const filteredDocs = documents.filter((d) =>
-    d.original_name.toLowerCase().includes(search.toLowerCase())
+    (d.original_name || d.original_filename || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -56,13 +31,13 @@ export const DocumentsPage = () => {
           </p>
         </div>
 
-        <button onClick={fetchDocs} className="btn-secondary" style={{ padding: '0.6rem 1rem' }}>
+        <button onClick={refetch} className="btn-secondary" style={{ padding: '0.6rem 1rem' }}>
           <RefreshCw size={16} className={loading ? 'spin' : ''} />
           <span>Refresh</span>
         </button>
       </div>
 
-      <UploadDropzone onUploadSuccess={handleUploadSuccess} />
+      <UploadDropzone />
 
       <div style={{
         display: 'flex',
@@ -137,7 +112,7 @@ export const DocumentsPage = () => {
           gap: '1.25rem',
         }}>
           {filteredDocs.map((doc) => (
-            <DocumentCard key={doc.id} document={doc} onDelete={handleDeleteSuccess} />
+            <DocumentCard key={doc.id} document={doc} />
           ))}
         </div>
       )}

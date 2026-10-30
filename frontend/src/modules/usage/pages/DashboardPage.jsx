@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/auth_context';
-import { documentApi } from '../../documents/services/document_api';
-import { chatApi } from '../../chat/services/chat_api';
-import { usageApi } from '../services/usage_api';
+import { useAppDispatch } from '../../../store/hooks';
+import { setSelectedDocIds } from '../../chat/slices/chatUiSlice';
+import { useGetDocumentsQuery } from '../../documents/api/documentsApi';
+import { useGetConversationsQuery, useCreateConversationMutation } from '../../chat/api/chatApi';
+import { useGetUsageStatusQuery } from '../api/usageApi';
 import { QuotaMeter } from '../components/QuotaMeter';
 import {
   FileText,
@@ -23,46 +25,30 @@ import {
 export const DashboardPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
-  const [documents, setDocuments] = useState([]);
-  const [conversations, setConversations] = useState([]);
-  const [quota, setQuota] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: documents = [], isLoading: docsLoading } = useGetDocumentsQuery();
+  const { data: conversations = [], isLoading: convsLoading } = useGetConversationsQuery();
+  const { data: quota, isLoading: quotaLoading } = useGetUsageStatusQuery();
+  const [createConversation] = useCreateConversationMutation();
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      const [docsRes, convsRes, quotaRes] = await Promise.all([
-        documentApi.getDocuments().catch(() => ({ results: [] })),
-        chatApi.getConversations().catch(() => ({ results: [] })),
-        usageApi.getUsageStatus().catch(() => null),
-      ]);
-
-      const docList = Array.isArray(docsRes) ? docsRes : docsRes.results || [];
-      const convList = Array.isArray(convsRes) ? convsRes : convsRes.results || [];
-
-      setDocuments(docList);
-      setConversations(convList);
-      setQuota(quotaRes);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loading = docsLoading || convsLoading || quotaLoading;
 
   const readyDocs = documents.filter((d) => d.status === 'READY');
   const processingDocs = documents.filter((d) => d.status === 'PROCESSING' || d.status === 'UPLOADED');
 
   const handleStartChat = async () => {
     try {
-      const newConv = await chatApi.createConversation({ title: 'New Analysis' });
+      const newConv = await createConversation({ title: 'New Analysis' }).unwrap();
       navigate('/chat', { state: { conversationId: newConv.id } });
     } catch {
       navigate('/chat');
     }
+  };
+
+  const handleAskDoc = (docId) => {
+    dispatch(setSelectedDocIds([docId]));
+    navigate('/chat');
   };
 
   return (
@@ -327,7 +313,7 @@ export const DashboardPage = () => {
                     </span>
                     {doc.status === 'READY' && (
                       <button
-                        onClick={() => navigate('/chat', { state: { selectedDocId: doc.id } })}
+                        onClick={() => handleAskDoc(doc.id)}
                         className="btn-secondary"
                         style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                       >

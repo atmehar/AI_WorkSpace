@@ -1,9 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { axiosClient } from '../api/axios_client';
+import { useAppDispatch } from '../store/hooks';
+import { setCredentials, setUser as setReduxUser, logout as logoutRedux } from '../modules/auth/slices/authSlice';
+import { baseApi } from '../store/baseApi';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  const dispatch = useAppDispatch();
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user');
     return saved ? JSON.parse(saved) : null;
@@ -16,6 +20,7 @@ export const AuthProvider = ({ children }) => {
       axiosClient.get('/auth/me/')
         .then((res) => {
           setUser(res.data);
+          dispatch(setReduxUser(res.data));
           localStorage.setItem('user', JSON.stringify(res.data));
         })
         .catch(() => {
@@ -23,20 +28,26 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem('refresh_token');
           localStorage.removeItem('user');
           setUser(null);
+          dispatch(logoutRedux());
         })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [dispatch]);
 
   const login = async (email, password) => {
     const res = await axiosClient.post('/auth/login/', { email, password });
     localStorage.setItem('access_token', res.data.access);
     localStorage.setItem('refresh_token', res.data.refresh);
-    
+
     const userRes = await axiosClient.get('/auth/me/');
     setUser(userRes.data);
+    dispatch(setCredentials({
+      user: userRes.data,
+      access: res.data.access,
+      refresh: res.data.refresh,
+    }));
     localStorage.setItem('user', JSON.stringify(userRes.data));
     return userRes.data;
   };
@@ -50,6 +61,11 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('access_token', res.data.tokens.access);
     localStorage.setItem('refresh_token', res.data.tokens.refresh);
     setUser(res.data.user);
+    dispatch(setCredentials({
+      user: res.data.user,
+      access: res.data.tokens.access,
+      refresh: res.data.tokens.refresh,
+    }));
     localStorage.setItem('user', JSON.stringify(res.data.user));
     return res.data.user;
   };
@@ -67,6 +83,8 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
       setUser(null);
+      dispatch(logoutRedux());
+      dispatch(baseApi.util.resetApiState());
     }
   };
 
@@ -74,6 +92,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await axiosClient.get('/auth/me/');
       setUser(res.data);
+      dispatch(setReduxUser(res.data));
       localStorage.setItem('user', JSON.stringify(res.data));
     } catch (e) {
       // Keep existing user state on silent failure

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth_context';
-import { usageApi } from '../../modules/usage/services/usage_api';
+import { useGetUsageStatusQuery } from '../../modules/usage/api/usageApi';
 import {
   Sparkles,
   LogOut,
@@ -16,15 +16,7 @@ import {
 export const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [quota, setQuota] = useState(null);
-
-  useEffect(() => {
-    if (user) {
-      usageApi.getUsageStatus()
-        .then(setQuota)
-        .catch(() => {});
-    }
-  }, [user]);
+  const { data: quota } = useGetUsageStatusQuery(undefined, { skip: !user });
 
   const handleLogout = async () => {
     await logout();

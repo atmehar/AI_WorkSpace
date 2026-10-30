@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../../../context/auth_context';
-import { usageApi } from '../services/usage_api';
+import { useGetUsageStatusQuery } from '../api/usageApi';
 import { QuotaMeter } from '../components/QuotaMeter';
 import {
   User,
@@ -17,24 +17,7 @@ import {
 
 export const SettingsPage = () => {
   const { user } = useAuth();
-  const [quota, setQuota] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchQuota();
-  }, []);
-
-  const fetchQuota = async () => {
-    try {
-      setLoading(true);
-      const data = await usageApi.getUsageStatus();
-      setQuota(data);
-    } catch {
-      // Handled silently
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: quota, isLoading: loading, refetch } = useGetUsageStatusQuery();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1000px', margin: '0 auto' }}>
@@ -96,7 +79,7 @@ export const SettingsPage = () => {
             <Zap size={18} color="#f59e0b" />
             Query Quota & Limits
           </h2>
-          <button onClick={fetchQuota} className="btn-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}>
+          <button onClick={refetch} className="btn-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}>
             <RefreshCw size={14} />
             <span>Refresh Status</span>
           </button>

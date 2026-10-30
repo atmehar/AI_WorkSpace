@@ -1,35 +1,62 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { chatApi } from '../services/chat_api';
-import { documentApi } from '../../documents/services/document_api';
-import { usageApi } from '../../usage/services/usage_api';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
+import {
+  selectSelectedDocIds,
+  selectActiveConversationId,
+  selectActiveCitation,
+  setSelectedDocIds,
+  setActiveConversationId,
+  setActiveCitation,
+  clearActiveCitation,
+} from '../slices/chatUiSlice';
+import {
+  useGetConversationQuery,
+  useAskQuestionMutation,
+} from '../api/chatApi';
+import { useGetUsageStatusQuery } from '../../usage/api/usageApi';
+import { ChatSidebar } from '../components/ChatSidebar';
 import { MessageBubble } from '../components/MessageBubble';
 import { CitationDrawer } from '../components/CitationDrawer';
 import {
   Send,
-  Plus,
-  MessageSquare,
   FileCheck,
   Zap,
   Loader2,
-  Trash2,
   AlertCircle
 } from 'lucide-react';
 
 export const ChatPage = () => {
   const location = useLocation();
-  const [conversations, setConversations] = useState([]);
-  const [activeConv, setActiveConv] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [documents, setDocuments] = useState([]);
-  const [selectedDocIds, setSelectedDocIds] = useState([]);
-  const [question, setQuestion] = useState('');
-  const [sending, setSending] = useState(false);
-  const [activeCitation, setActiveCitation] = useState(null);
-  const [quota, setQuota] = useState(null);
-  const [error, setError] = useState(null);
+  const dispatch = useAppDispatch();
 
+  // Redux Client UI State
+  const selectedDocIds = useAppSelector(selectSelectedDocIds);
+  const activeConversationId = useAppSelector(selectActiveConversationId);
+  const activeCitation = useAppSelector(selectActiveCitation);
+
+  // Redux Server Cache Queries & Mutations
+  const { data: activeConv } = useGetConversationQuery(activeConversationId, {
+    skip: !activeConversationId,
+  });
+  const { data: quota } = useGetUsageStatusQuery();
+  const [askQuestion, { isLoading: sending }] = useAskQuestionMutation();
+
+  const [question, setQuestion] = useState('');
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
+
+  // Synchronize cross-page route state into Redux store
+  useEffect(() => {
+    if (location.state?.selectedDocId) {
+      dispatch(setSelectedDocIds([location.state.selectedDocId]));
+    }
+    if (location.state?.conversationId) {
+      dispatch(setActiveConversationId(location.state.conversationId));
+    }
+  }, [location.state, dispatch]);
+
+  const messages = activeConv?.messages || [];
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,90 +66,9 @@ export const ChatPage = () => {
     scrollToBottom();
   }, [messages, sending]);
 
-  // Load initial data
-  useEffect(() => {
-    loadConversations();
-    loadDocuments();
-    refreshQuota();
-  }, []);
-
-  const refreshQuota = () => {
-    usageApi.getUsageStatus().then(setQuota).catch(() => {});
-  };
-
-  const loadDocuments = async () => {
-    try {
-      const docs = await documentApi.getDocuments();
-      const readyDocs = docs.filter((d) => d.status === 'READY');
-      setDocuments(readyDocs);
-
-      // If document was passed via route state, select it
-      if (location.state?.selectedDocId) {
-        setSelectedDocIds([location.state.selectedDocId]);
-      } else if (readyDocs.length > 0) {
-        setSelectedDocIds(readyDocs.map((d) => d.id));
-      }
-    } catch (e) {}
-  };
-
-  const loadConversations = async () => {
-    try {
-      const convs = await chatApi.getConversations();
-      setConversations(convs);
-      if (convs.length > 0) {
-        selectConversation(convs[0].id);
-      } else {
-        handleNewChat();
-      }
-    } catch (e) {}
-  };
-
-  const selectConversation = async (id) => {
-    try {
-      const conv = await chatApi.getConversation(id);
-      setActiveConv(conv);
-      setMessages(conv.messages || []);
-      setError(null);
-    } catch (e) {}
-  };
-
-  const handleNewChat = async () => {
-    try {
-      const newConv = await chatApi.createConversation('New Conversation');
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveConv(newConv);
-      setMessages([]);
-      setError(null);
-    } catch (e) {}
-  };
-
-  const handleDeleteConversation = async (e, convId) => {
-    e.stopPropagation();
-    if (!window.confirm('Delete this conversation?')) return;
-    try {
-      await chatApi.deleteConversation(convId);
-      setConversations((prev) => prev.filter((c) => c.id !== convId));
-      if (activeConv?.id === convId) {
-        const remaining = conversations.filter((c) => c.id !== convId);
-        if (remaining.length > 0) {
-          selectConversation(remaining[0].id);
-        } else {
-          handleNewChat();
-        }
-      }
-    } catch (e) {}
-  };
-
-  const toggleDocSelection = (docId) => {
-    setSelectedDocIds((prev) =>
-      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
-    );
-  };
-
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!question.trim() || sending) return;
-    if (!activeConv) return;
+    if (!question.trim() || sending || !activeConversationId) return;
 
     if (quota && quota.remaining <= 0) {
       setError('You have reached your daily quota limit of 20 questions.');
@@ -133,46 +79,15 @@ export const ChatPage = () => {
     setQuestion('');
     setError(null);
 
-    // Optimistically show user message
-    const tempUserMsg = {
-      id: 'temp-' + Date.now(),
-      role: 'USER',
-      content: currentQuestion,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, tempUserMsg]);
-    setSending(true);
-
     try {
-      const res = await chatApi.askQuestion(activeConv.id, currentQuestion, selectedDocIds);
-
-      // Append assistant message
-      const assistantMsg = {
-        id: res.request_id,
-        role: 'ASSISTANT',
-        content: res.answer,
-        sources: res.sources,
-        status: 'COMPLETED',
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-      if (res.usage) setQuota(res.usage);
+      await askQuestion({
+        conversationId: activeConversationId,
+        question: currentQuestion,
+        documentIds: selectedDocIds,
+      }).unwrap();
     } catch (err) {
-      const msg = err.response?.data?.error?.message || 'Failed to get answer.';
+      const msg = err?.data?.error?.message || err?.data?.detail || 'Failed to get answer.';
       setError(msg);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: 'error-' + Date.now(),
-          role: 'ASSISTANT',
-          content: msg,
-          status: 'FAILED',
-          created_at: new Date().toISOString(),
-        },
-      ]);
-      refreshQuota();
-    } finally {
-      setSending(false);
     }
   };
 
@@ -184,139 +99,8 @@ export const ChatPage = () => {
       height: 'calc(100vh - 116px)',
       position: 'relative',
     }}>
-      {/* Left Column: Conversations & Document Filter */}
-      <div className="glass-panel" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        padding: '1.25rem',
-      }}>
-        <button
-          onClick={handleNewChat}
-          className="btn-primary"
-          style={{ width: '100%', marginBottom: '1.25rem', padding: '0.65rem' }}
-        >
-          <Plus size={16} />
-          <span>New Chat</span>
-        </button>
-
-        <div style={{
-          fontSize: '0.75rem',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          color: 'var(--text-muted)',
-          marginBottom: '0.6rem',
-        }}>
-          Target Documents ({selectedDocIds.length}/{documents.length})
-        </div>
-
-        {/* Document Checklist */}
-        <div style={{
-          maxHeight: '140px',
-          overflowY: 'auto',
-          background: 'rgba(0, 0, 0, 0.2)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '0.5rem',
-          marginBottom: '1.25rem',
-          border: '1px solid var(--border-subtle)',
-        }}>
-          {documents.length === 0 ? (
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              No ready documents. Upload documents in the Documents tab.
-            </p>
-          ) : (
-            documents.map((doc) => (
-              <label
-                key={doc.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.8rem',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  padding: '0.25rem 0.35rem',
-                  borderRadius: '4px',
-                  userSelect: 'none',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedDocIds.includes(doc.id)}
-                  onChange={() => toggleDocSelection(doc.id)}
-                  style={{ accentColor: 'var(--accent-primary)' }}
-                />
-                <span style={{
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }} title={doc.original_name}>
-                  {doc.original_name}
-                </span>
-              </label>
-            ))
-          )}
-        </div>
-
-        <div style={{
-          fontSize: '0.75rem',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          color: 'var(--text-muted)',
-          marginBottom: '0.6rem',
-        }}>
-          Chat History
-        </div>
-
-        {/* Conversation List */}
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          {conversations.map((c) => {
-            const isActive = activeConv?.id === c.id;
-            return (
-              <div
-                key={c.id}
-                onClick={() => selectConversation(c.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.65rem 0.8rem',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  background: isActive ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-                  border: isActive ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid transparent',
-                  color: isActive ? '#fff' : 'var(--text-secondary)',
-                  fontSize: '0.88rem',
-                  transition: 'var(--transition)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-                  <MessageSquare size={15} style={{ flexShrink: 0 }} />
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {c.title}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => handleDeleteConversation(e, c.id)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '2px',
-                  }}
-                  title="Delete chat"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Left Column: Modularized Chat Sidebar */}
+      <ChatSidebar />
 
       {/* Right Column: Chat Stream & Message Input */}
       <div className="glass-panel" style={{
@@ -397,7 +181,7 @@ export const ChatPage = () => {
               <MessageBubble
                 key={msg.id}
                 message={msg}
-                onSelectCitation={(cit) => setActiveCitation(cit)}
+                onSelectCitation={(cit) => dispatch(setActiveCitation(cit))}
               />
             ))
           )}
@@ -461,11 +245,13 @@ export const ChatPage = () => {
         </form>
       </div>
 
-      {/* Citation Modal Drawer */}
+      {/* Citation Modal Drawer managed by Redux */}
       <CitationDrawer
         citation={activeCitation}
-        onClose={() => setActiveCitation(null)}
+        onClose={() => dispatch(clearActiveCitation())}
       />
     </div>
   );
 };
+
+export default ChatPage;

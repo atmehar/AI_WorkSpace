@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, File, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { documentApi } from '../services/document_api';
+import { useUploadDocumentMutation } from '../api/documentsApi';
 
 export const UploadDropzone = ({ onUploadSuccess }) => {
   const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const fileInputRef = useRef(null);
+
+  const [uploadDocumentMutation, { isLoading: uploading }] = useUploadDocumentMutation();
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -26,16 +27,14 @@ export const UploadDropzone = ({ onUploadSuccess }) => {
       return;
     }
 
-    setUploading(true);
     try {
-      const doc = await documentApi.uploadDocument(file);
+      const doc = await uploadDocumentMutation({ file }).unwrap();
       setSuccess(`Successfully uploaded "${file.name}"! Processing started.`);
       if (onUploadSuccess) onUploadSuccess(doc);
     } catch (err) {
-      const msg = err.response?.data?.error?.message || err.response?.data?.file?.[0] || 'Upload failed.';
+      const msg = err?.data?.error?.message || err?.data?.file?.[0] || 'Upload failed.';
       setError(msg);
     } finally {
-      setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
